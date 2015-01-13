@@ -1,39 +1,48 @@
-PROJECT_NAME 	= nrf24le1
-PROJECT_PATH	= $(pwd)
+# Name: Makefile
+# Project: custom-class example
+# Author: Christian Starkjohann
+# Creation Date: 2008-04-06
+# Tabsize: 4
+# Copyright: (c) 2008 by OBJECTIVE DEVELOPMENT Software GmbH
+# License: GNU GPL v2 (see License.txt), GNU GPL v3 or proprietary (CommercialLicense.txt)
 
-CC	    = gcc
-INCLUDE	= -I/usr/local/include -I.
-include Makefile.dev
-CFLAGS	= -O3 -Wall $(INCLUDE) -Winline -pipe $(CFLAGSDEV)
 
-LDFLAGS	= -L/usr/local/lib
-LIBS    = -l bcm2835 -l rt
+# Concigure the following definitions according to your system.
+# This Makefile has been tested on Mac OS X, Linux and Windows.
 
-SRC	    = main.c wiring.c nrf24le1.c
-OBJ	    = $(addprefix $(OBJ_PATH)/, $(patsubst %.c,%.o,$(SRC)))
-BINS	= main
+# Use the following 3 lines on Unix (uncomment the framework on Mac OS X):
+USBFLAGS = `libusb-config --cflags`
+USBLIBS = `libusb-config --libs`
+EXE_SUFFIX =
 
-BIN_PATH 	= bin
-OBJ_PATH  	= obj
+# Use the following 3 lines on Windows and comment out the 3 above. You may
+# have to change the include paths to where you installed libusb-win32
+#USBFLAGS = -I/usr/local/include
+#USBLIBS = -L/usr/local/lib -lusb
+#EXE_SUFFIX = .exe
+# -Wall
 
-all: $(BIN_PATH)/$(PROJECT_NAME)
+NAME = nrf24le1
 
-$(BIN_PATH)/nrf24le1: $(OBJ)
-	@mkdir -p $(BIN_PATH)
-	$(CC) -o $(BIN_PATH)/$(PROJECT_NAME) $(OBJ) $(LDFLAGS) $(LIBS)
+OBJECTS = opendevice.o main.o
 
-$(OBJ_PATH)/%.o: %.c
-	@mkdir -p $(OBJ_PATH)
-	$(CC) -c -o $@ $< $(CFLAGS)
+CC		= gcc
+CFLAGS	= $(CPPFLAGS) $(USBFLAGS) -O -g 
+LIBS	= $(USBLIBS)
 
-$(OBJ_PATH)/wiring.o: wiring.c wiring.h
-$(OBJ_PATH)/nrf24le1.o: wiring.h nrf24le1.h
-$(OBJ_PATH)/main.o: nrf24le1.h
+PROGRAM = $(NAME)$(EXE_SUFFIX)
 
-install:
-	install -m 06777 $(BIN_PATH)/$(PROJECT_NAME) /usr/local/bin/$(PROJECT_NAME)
+
+all: $(PROGRAM)
+
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+
+$(PROGRAM): $(OBJECTS)
+	$(CC) -o $(PROGRAM) $(OBJECTS) $(LIBS)
+
+strip: $(PROGRAM)
+	strip $(PROGRAM)
 
 clean:
-	rm -f $(OBJ_PATH)/* $(BIN_PATH)/*
-
-.PHONY: all clean install
+	rm -f *.o $(PROGRAM)

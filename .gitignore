@@ -5,3 +5,6 @@ dist
 Makefile.dev
 .*.swp
 tags
+*.o
+*.dll
+*.bin
