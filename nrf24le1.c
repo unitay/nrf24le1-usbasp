@@ -112,8 +112,6 @@ int _read_infopage(uint8_t *buf)
 
 		*addr = htons(i);
 		ret = write_then_read(cmd, 3, in, N_BYTES_FOR_READ);
-		if (0 != ret)
-			return ret;
 
 		memcpy(p, in, N_BYTES_FOR_READ);
 
@@ -394,7 +392,6 @@ da_infopage_store(const uint8_t *buf, size_t count)
 	debug("Initiate writing to infopage");
 	ret = _write_infopage(buf);
 	if (0 > ret) {
-		debug("Number of errors writing to infopage: %i", -1 * ret);
 	} else {
 		debug("Number of writes written to infopage: %i", ret);
 		size = ret;
@@ -426,8 +423,6 @@ da_infopage_show(uint8_t *buf)
 	debug("begin");
 
 	ret = _enable_infopage_access();
-	if (0 != ret)
-		goto end;
 
 	size = _read_infopage(buf);
 	if (0 > size) {
@@ -538,6 +533,8 @@ void _erase_all(void)
 	cmd[0] = SPICMD_WREN;
 	write_then_read(cmd, 1, NULL, 0);
 	_wait_for_ready();
+
+	ret = _enable_infopage_access();
 
 	cmd[0] = SPICMD_ERASEALL;
 	ret = write_then_read(cmd, 1, NULL, 0);
