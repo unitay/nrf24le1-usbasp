@@ -2,61 +2,101 @@
 #include <string.h>
 
 void
+send_usb(uint8_t cmd) 
+{
+	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, cmd, 0, 0, buffer, sizeof(buffer), 5000);
+}
+
+void
 wiring_init() 
 {
-
-	if (!bcm2835_init()) {
-		printf("bcm2835 init failed\n");
-		exit(errno);
-	}
-
-
-	bcm2835_spi_begin();
-    bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_MSBFIRST);      // The default
-    bcm2835_spi_setDataMode(BCM2835_SPI_MODE0);                   // The default
-    bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_64);    // 4Mhz clock
-    bcm2835_spi_chipSelect(BCM2835_SPI_CS0);                      // The default
-    bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, LOW);      // the default
-
-	
-	bcm2835_gpio_fsel(WIRING_NRF_PROG_PIN, BCM2835_GPIO_FSEL_OUTP);	
-	bcm2835_gpio_fsel(WIRING_NRF_RESET_PIN, BCM2835_GPIO_FSEL_OUTP);
-
+	send_usb(41);
+	sleep(1);
 }
 
 uint8_t
-wiring_write_then_read(uint8_t* out, uint16_t out_len, 
-	               uint8_t* in, uint16_t in_len)
+wr_spi (uint8_t data)
 {
-	uint8_t transfer_buf[out_len + in_len];
-	unsigned int ret = 0;
+	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, 2, data, 0, buffer, sizeof(buffer), 5000);
+	return buffer[0];
+}
 
-	memset(transfer_buf, 0, out_len + in_len);
-	
-	if (NULL != out) {
-		memcpy(transfer_buf, out, out_len);
-		ret += out_len;
-	}
+// прием массива из 32 байт
+void
+r_spi_array ()
+{
+	send_usb(51);
+}
 
-	if (NULL != in) {
-		ret += in_len;
-	}
+// отправка массива из 4 байт
+void
+w_spi_array (uint8_t data1,uint8_t data2,uint8_t data3,uint8_t data4)
+{
+	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, 52, data1+data2*256, data3+data4*256, buffer, sizeof(buffer), 5000);
+}
 
-	bcm2835_spi_transfern((char*)transfer_buf, ret);
+// функция отправки одного байта + SS !
+void
+w_spi_one (uint8_t data)
+{
+	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, 3, data, 0, buffer, sizeof(buffer), 5000);
+}
 
-	memcpy(in, &transfer_buf[out_len], in_len);
+// функция отправки/приема одного байта + SS !
+uint8_t
+wr_spi_one (uint8_t data)
+{
+	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, 4, data, 0, buffer, sizeof(buffer), 5000);
+	return buffer[0];
+}
 
-	return ret;
+uint8_t
+wiring_write_then_read(uint8_t* out, uint16_t out_len, uint8_t* in, uint16_t in_len)
+{
+	int i;
+	send_usb(21);
+  
+if (NULL != out) for (i=0;i<out_len;i++) // отправить
+
+#if 1
+  if (i+4<= out_len) { // отправка 4 байта за раз
+//printf ("data %d\n",i);
+  w_spi_array(out[i],out[i+1],out[i+2],out[i+3]);
+  i+=3;
+  }
+else 
+#endif
+wr_spi(out[i]);
+
+if (NULL != in) for (i=0;i<in_len;i++)
+#if 1
+ if (i+32<= in_len) { // прием 32 байта за раз
+   
+  r_spi_array();
+  
+  memcpy(&in[i],buffer, 32);
+  i+=31;
+  }
+  
+ else
+#endif
+ in[i]=wr_spi(0); // прочитать
+
+
+send_usb(20);
+
+
+return in_len+out_len;
 }
 
 void
 wiring_set_gpio_value(uint8_t pin, uint8_t state)
 {
-	bcm2835_gpio_write(pin, state);
+	send_usb(10+state);
 }
 
 void
-wiring_destroy(void)
+wiring_destroy()
 {
-	bcm2835_spi_end();
+	send_usb(40);
 }

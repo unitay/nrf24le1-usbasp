@@ -1,7 +1,6 @@
 #ifndef __WIRING_H__
 #define __WIRING_H__
 
-#include <bcm2835.h>
 
 #include <errno.h>
 #include <stdint.h>
@@ -11,10 +10,6 @@
 /* nrf24LE1 required signals */
 #define WIRING_NRF_PROG_PIN		24
 #define WIRING_NRF_RESET_PIN	25
-
-/* Macros for sleep happiness */
-#define udelay(us)		bcm2835_delayMicroseconds(us)
-#define mdelay(ms)		bcm2835_delayMicroseconds(ms*1000)
 
 /* Wiring functions for bootstraping SPI */
 void wiring_init(void);
