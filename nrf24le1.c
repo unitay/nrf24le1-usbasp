@@ -1,8 +1,6 @@
 #include "nrf24le1.h"
 #include "wiring.h"
 
-#include <endian.h>
-
 #define NAME "nrf24le1"
 
 void uhet_record_init(void);
@@ -62,8 +60,8 @@ void _wait_for_ready(void)
 		}
 		count++;
 
-		wiring_write_then_read(&cmd, 1, &fsr, 1);
-		udelay(500);
+		fsr = wr_spi_one (cmd);
+		usleep(300);
 
 	} while (fsr & FSR_RDYN);
 }
@@ -88,7 +86,7 @@ int _enable_infopage_access(void)
 	cmd[0] = SPICMD_RDSR;
 	write_then_read(cmd, 1, in, 1);
 
-	// comparando escrita
+	// comparing writing
 	if ((in[0] & FSR_INFEN) == 0) {
 		debug("Failed to enable infopage access %X %X", fsr_orig,
 		      in[0]);
@@ -112,7 +110,7 @@ int _read_infopage(uint8_t *buf)
 	cmd[0] = SPICMD_READ;
 	for (i = 0; i < NRF_PAGE_SIZE; i += N_BYTES_FOR_READ) {
 
-		*addr = htole16(i);
+		*addr = htons(i);
 		ret = write_then_read(cmd, 3, in, N_BYTES_FOR_READ);
 		if (0 != ret)
 			return ret;
@@ -141,7 +139,7 @@ int _read_nvm_normal(uint8_t *buf)
 	cmd[0] = SPICMD_READ;
 	for (i = 0; i < NVM_NORMAL_MEM_SIZE; i += N_BYTES_FOR_READ) {
 
-		*addr = htole16(i + NVM_NORMAL_PAGE0_INI_ADDR);
+		*addr = htons(i + NVM_NORMAL_PAGE0_INI_ADDR);
 		ret = write_then_read(cmd, 3, in, N_BYTES_FOR_READ);
 		if (0 != ret)
 			return ret;
@@ -176,7 +174,7 @@ int _disable_infopage_access(void)
 	cmd[0] = SPICMD_RDSR;
 	write_then_read(cmd, 1, in, 1);
 
-	// comparando escrita
+	// comparing writing
 	if ((in[0] & FSR_INFEN) != 0) {
 		debug("Failed to disable infopage access %X %X",
 		      fsr_orig, in[0]);
@@ -264,7 +262,7 @@ da_test_show(int dump)
 	}
 
 	cmd = SPICMD_RDSR;
-	write_then_read(&cmd, 1, &fsr, 1);
+	fsr = wr_spi_one (cmd);
 	if (dump) {
 		printf("* FSR original\n");
 		dump_fsr(fsr);
@@ -274,9 +272,9 @@ da_test_show(int dump)
 	write_then_read(&cmd, 1, NULL, 0);
 
 	cmd = SPICMD_RDSR;
-	write_then_read(&cmd, 1, &fsr, 1);
+	fsr = wr_spi_one (cmd);
 	if (dump) {
-		printf("* FSR apos WREN, WEN deve ser 1\n");
+		printf("* FSR after WREN, WEN must be 1\n");
 		dump_fsr(fsr);
 	}
 	if ((fsr & FSR_WEN) == 0) {
@@ -288,9 +286,9 @@ da_test_show(int dump)
 	write_then_read(&cmd, 1, NULL, 0);
 
 	cmd = SPICMD_RDSR;
-	write_then_read(&cmd, 1, &fsr, 1);
+	fsr = wr_spi_one (cmd);
 	if (dump) {
-		printf("* FSR apos WRDIS, WEN deve ser 0\n");
+		printf("* FSR after WRDIS, WEN must be 0\n");
 		dump_fsr(fsr);
 	}
 	if ((fsr & FSR_WEN) == 1) {
@@ -322,7 +320,7 @@ int _write_infopage(const uint8_t *buf)
 		_wait_for_ready();
 
 		cmd[0] = SPICMD_PROGRAM;
-		*addr = htole16(i);
+		*addr = htons(i);
 		memcpy(cmd + 3, infopage, N_BYTES_FOR_WRITE);
 
 		if (0 != write_then_read(cmd, 3 + N_BYTES_FOR_WRITE, NULL, 0))
@@ -355,7 +353,7 @@ int _write_nvm_normal(const uint8_t *buf)
 		_wait_for_ready();
 
 		cmd[0] = SPICMD_PROGRAM;
-		*addr = htole16(i + NVM_NORMAL_PAGE0_INI_ADDR);
+		*addr = htons(i + NVM_NORMAL_PAGE0_INI_ADDR);
 		memcpy(cmd + 3, mem, N_BYTES_FOR_WRITE);
 
 		if (0 != write_then_read(cmd, 3 + N_BYTES_FOR_WRITE, NULL, 0))
@@ -512,31 +510,21 @@ end:
 	return ret;
 }
 
-void da_reset(void)
-{
-	wiring_set_gpio_value(GPIO_RESET, 0);
-	udelay(5);
-	wiring_set_gpio_value(GPIO_RESET, 1);
-	mdelay(10);
-}
-
 static void set_prog_bit(int bit)
 {
 	wiring_set_gpio_value(GPIO_PROG, bit);
-	mdelay(1);
+	sleep(1);
 }
 
 void uhet_record_init(void)
 {
 	printf("Initiate programming\n");
 	set_prog_bit(1);
-	da_reset();
 }
 
 void uhet_record_end(void)
 {
 	set_prog_bit(0);
-	da_reset();
 	printf("Finished programming\n");
 }
 
@@ -621,7 +609,7 @@ ssize_t uhet_write(uint8_t *buf, size_t count, unsigned long *off)
 		return -EINVAL;
 	}
 
-	_erase_program_pages(); /* apaga primeiro */
+	_erase_program_pages(); /* goes first */
 
 	_wait_for_ready();
 
@@ -641,7 +629,7 @@ ssize_t uhet_write(uint8_t *buf, size_t count, unsigned long *off)
 		printf("b0:%02X    b1:%02X   b2: %02X\n",cmd[0], cmd[2], cmd[1]);
 		write_then_read(cmd, 3 + 512, NULL, 0);
 
-		addr = addr + 512; /* Atualizando o endereco */
+		addr = addr + 512; /* Updating address */
 		_wait_for_ready();
 	}
 
@@ -658,7 +646,7 @@ uhet_read(uint8_t* buf, size_t count, unsigned long *off)
 	}
 
 	printf("Number of bytes to read: %i, max flash size %d\n", count, MAX_FIRMWARE_SIZE);
-	// lendo da flash
+	// reading from flash
 	{
 		uint8_t cmd[3];
 		uint16_t *addr = (uint16_t *) (cmd + 1);
